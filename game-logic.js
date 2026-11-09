@@ -46,6 +46,42 @@
     return { ok: true, harvested: false, reason: null };
   }
 
+  function advanceAutoChop(state, trees, position, timer, deltaSeconds, intervalSeconds = 0.55, radius = 5.8) {
+    const target = nearestActiveTree(position, trees, radius);
+    if (!target || state.logs >= state.capacity) {
+      return { timer: 0, target: null, hits: [], harvested: false };
+    }
+
+    let cooldown = Math.max(0, Number(timer) || 0);
+    let remaining = Math.max(0, Number(deltaSeconds) || 0);
+    const interval = Math.max(0.05, Number(intervalSeconds) || 0.55);
+    const hits = [];
+    let guard = 0;
+
+    // El delta del juego se limita a 50 ms; el guard evita bucles enormes
+    // si esta función recibe accidentalmente un salto de tiempo anormal.
+    while (remaining + 1e-9 >= cooldown && guard < 8) {
+      remaining = Math.max(0, remaining - cooldown);
+      const result = hitTree(state, target);
+      hits.push(result);
+      guard += 1;
+
+      if (!result.ok || result.harvested) {
+        cooldown = 0;
+        break;
+      }
+      cooldown = interval;
+    }
+
+    if (cooldown > 0) cooldown = Math.max(0, cooldown - remaining);
+    return {
+      timer: cooldown,
+      target,
+      hits,
+      harvested: hits.some(result => result.harvested)
+    };
+  }
+
   function isWithin(position, target, radius) {
     return distanceXZ(position, target) <= radius;
   }
@@ -65,46 +101,68 @@
 
     function update(clientX, clientY) {
       const rect = zone.getBoundingClientRect();
-      const x = clientX - rect.left - rect.width / 2;
-      const y = clientY - rect.top - rect.height / 2;
-      const radius = Math.max(1, Math.min(rect.width, rect.height) * 0.31);
-      const vector = normalizeInput(x / radius, y / radius, 0.02);
+      if (!rect.width || !rect.height) return;
+
+      const dx = clientX - rect.left - rect.width / 2;
+      const dy = clientY - rect.top - rect.height / 2;
+      const travel = Math.max(1, Math.min(rect.width, rect.height) * 0.31);
+      const distance = Math.hypot(dx, dy);
+      const scale = distance > travel ? travel / distance : 1;
+      const limitedX = dx * scale;
+      const limitedY = dy * scale;
+      const vector = normalizeInput(limitedX / travel, limitedY / travel, 0.04);
+
       onMove({ x: vector.x, z: vector.z });
-      const limit = Math.max(0, rect.width / 2 - 21);
-      knob.style.left = 'calc(50% - 21px + ' + Math.max(-limit, Math.min(limit, x)) + 'px)';
-      knob.style.top = 'calc(50% - 21px + ' + Math.max(-limit, Math.min(limit, y)) + 'px)';
+      knob.style.left = 'calc(50% - 21px + ' + limitedX + 'px)';
+      knob.style.top = 'calc(50% - 21px + ' + limitedY + 'px)';
     }
 
     function reset() {
+      const pointerId = activePointer;
       activePointer = null;
       activeTouch = null;
+
+      if (pointerId !== null && zone.releasePointerCapture) {
+        try {
+          if (!zone.hasPointerCapture || zone.hasPointerCapture(pointerId)) {
+            zone.releasePointerCapture(pointerId);
+          }
+        } catch (_) {}
+      }
+
       onMove({ x: 0, z: 0 });
       knob.style.left = 'calc(50% - 21px)';
       knob.style.top = 'calc(50% - 21px)';
     }
 
-    zone.addEventListener('pointerdown', event => {
+    function onPointerDown(event) {
       if (activePointer !== null || activeTouch !== null) return;
+      if (event.isPrimary === false) return;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
+
       event.preventDefault();
       activePointer = event.pointerId;
       try {
         if (zone.setPointerCapture) zone.setPointerCapture(event.pointerId);
       } catch (_) {}
       update(event.clientX, event.clientY);
-    });
-    zone.addEventListener('pointermove', event => {
-      if (event.pointerId === activePointer) {
-        event.preventDefault();
-        update(event.clientX, event.clientY);
-      }
-    });
-    zone.addEventListener('pointerup', event => {
+    }
+
+    function onPointerMove(event) {
+      if (event.pointerId !== activePointer) return;
+      event.preventDefault();
+      update(event.clientX, event.clientY);
+    }
+
+    function onPointerEnd(event) {
       if (event.pointerId === activePointer) reset();
-    });
-    zone.addEventListener('pointercancel', event => {
-      if (event.pointerId === activePointer) reset();
-    });
+    }
+
+    zone.addEventListener('pointerdown', onPointerDown);
+    zone.addEventListener('pointermove', onPointerMove);
+    zone.addEventListener('pointerup', onPointerEnd);
+    zone.addEventListener('pointercancel', onPointerEnd);
+    zone.addEventListener('lostpointercapture', onPointerEnd);
 
     zone.addEventListener('touchstart', event => {
       if (activePointer !== null || activeTouch !== null) return;
@@ -114,6 +172,7 @@
       activeTouch = touch.identifier;
       update(touch.clientX, touch.clientY);
     }, { passive: false });
+
     zone.addEventListener('touchmove', event => {
       if (activeTouch === null) return;
       event.preventDefault();
@@ -124,6 +183,7 @@
         }
       }
     }, { passive: false });
+
     function endTouch(event) {
       if (activeTouch === null) return;
       for (const touch of event.changedTouches) {
@@ -133,12 +193,13 @@
         }
       }
     }
+
     zone.addEventListener('touchend', endTouch, { passive: false });
     zone.addEventListener('touchcancel', endTouch, { passive: false });
     zone.addEventListener('contextmenu', event => event.preventDefault());
+
     return { reset };
   }
-
 
   function advanceTruckJob(job, deltaSeconds, home, dock, loadSeconds = 1, travelSeconds = 5) {
     if (!job) return { position: home, load: false, unload: false, complete: true };
@@ -177,6 +238,7 @@
     distanceXZ,
     nearestActiveTree,
     hitTree,
+    advanceAutoChop,
     isWithin,
     interpolateXZ,
     bindJoystick,

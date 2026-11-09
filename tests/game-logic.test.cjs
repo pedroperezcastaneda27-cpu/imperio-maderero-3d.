@@ -61,6 +61,97 @@ test('interpola la ruta del camión y limita el progreso', () => {
 });
 
 
+
+test('la tala automática golpea por proximidad y entrega un tronco tras tres golpes', () => {
+  const state = { logs: 0, capacity: 5 };
+  const tree = { x: 1, z: 1, active: true, hp: 3, regrow: 0 };
+
+  const result = Logic.advanceAutoChop(state, [tree], { x: 0, z: 0 }, 0, 1.1);
+
+  assert.equal(result.hits.length, 3);
+  assert.equal(result.harvested, true);
+  assert.equal(state.logs, 1);
+  assert.equal(tree.active, false);
+  assert.equal(result.timer, 0);
+});
+
+test('la tala automática se detiene fuera de proximidad o con la mochila llena', () => {
+  const tree = { x: 1, z: 1, active: true, hp: 3, regrow: 0 };
+  const outOfRange = Logic.advanceAutoChop(
+    { logs: 0, capacity: 5 }, [tree], { x: 20, z: 20 }, 0.2, 0.1
+  );
+  assert.equal(outOfRange.hits.length, 0);
+  assert.equal(outOfRange.timer, 0);
+  assert.equal(tree.hp, 3);
+
+  const full = Logic.advanceAutoChop(
+    { logs: 5, capacity: 5 }, [tree], { x: 0, z: 0 }, 0, 1
+  );
+  assert.equal(full.hits.length, 0);
+  assert.equal(tree.hp, 3);
+});
+
+function fakeEventTarget() {
+  const listeners = {};
+  return {
+    listeners,
+    style: {},
+    captured: null,
+    addEventListener(type, handler) {
+      (listeners[type] ||= []).push(handler);
+    },
+    getBoundingClientRect() {
+      return { left: 0, top: 0, width: 100, height: 100 };
+    },
+    setPointerCapture(id) { this.captured = id; },
+    hasPointerCapture(id) { return this.captured === id; },
+    releasePointerCapture(id) { if (this.captured === id) this.captured = null; },
+    dispatch(type, event) {
+      for (const handler of listeners[type] || []) handler(event);
+    }
+  };
+}
+
+test('el joystick procesa arrastre Pointer Events y se centra al soltar', () => {
+  const zone = fakeEventTarget();
+  const knob = { style: {} };
+  const values = [];
+  const joystick = Logic.bindJoystick(zone, knob, value => values.push(value));
+  const event = (x, y) => ({
+    pointerId: 7, pointerType: 'touch', isPrimary: true, button: 0,
+    clientX: x, clientY: y, preventDefault() { this.defaultPrevented = true; }
+  });
+
+  zone.dispatch('pointerdown', event(50, 50));
+  zone.dispatch('pointermove', event(80, 50));
+  assert.ok(values.at(-1).x > 0.9);
+  assert.equal(values.at(-1).z, 0);
+  assert.equal(zone.captured, 7);
+
+  zone.dispatch('pointerup', event(80, 50));
+  assert.deepEqual(values.at(-1), { x: 0, z: 0 });
+  assert.equal(zone.captured, null);
+  assert.equal(knob.style.left, 'calc(50% - 21px)');
+  joystick.reset();
+});
+
+test('el joystick conserva compatibilidad con Touch Events y touchcancel', () => {
+  const zone = fakeEventTarget();
+  const knob = { style: {} };
+  const values = [];
+  Logic.bindJoystick(zone, knob, value => values.push(value));
+  const touch = (id, x, y) => ({ identifier: id, clientX: x, clientY: y });
+  const event = touches => ({ changedTouches: touches, preventDefault() {} });
+
+  zone.dispatch('touchstart', event([touch(4, 50, 50)]));
+  zone.dispatch('touchmove', event([touch(4, 20, 50)]));
+  assert.ok(values.at(-1).x < -0.9);
+
+  zone.dispatch('touchcancel', event([touch(4, 20, 50)]));
+  assert.deepEqual(values.at(-1), { x: 0, z: 0 });
+  assert.equal(knob.style.top, 'calc(50% - 21px)');
+});
+
 test('el camión carga, viaja al aserradero, descarga y regresa al patio', () => {
   const home = { x: -3.5, z: 8 };
   const dock = { x: 10, z: -14 };
@@ -108,6 +199,7 @@ test('el script principal y el controlador de joystick conservan sintaxis válid
   new vm.Script(logicSource, { filename: 'game-logic.js' });
   assert.match(html, /src="\.\/game-logic\.js"/);
   assert.match(html, /ImperioLogic\.bindJoystick/);
+  assert.match(html, /ImperioLogic\.advanceAutoChop/);
   assert.match(logicSource, /addEventListener\('touchstart'/);
   assert.match(logicSource, /addEventListener\('pointerdown'/);
 });
