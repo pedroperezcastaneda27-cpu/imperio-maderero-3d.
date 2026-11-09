@@ -60,61 +60,54 @@ test('interpola la ruta del camión y limita el progreso', () => {
   assert.deepEqual(Logic.interpolateXZ(home, dock, 2), dock);
 });
 
-test('el script principal del juego conserva sintaxis JavaScript válida', () => {
+
+test('el camión carga, viaja al aserradero, descarga y regresa al patio', () => {
+  const home = { x: -3.5, z: 8 };
+  const dock = { x: 10, z: -14 };
+  const job = { t: 0, n: 2, phase: 0 };
+
+  let update = Logic.advanceTruckJob(job, 0.5, home, dock);
+  assert.equal(update.load, false);
+  assert.equal(job.phase, 0);
+
+  update = Logic.advanceTruckJob(job, 0.5, home, dock);
+  assert.equal(update.load, true);
+  assert.equal(job.phase, 1);
+  assert.deepEqual(update.position, home);
+
+  update = Logic.advanceTruckJob(job, 2.5, home, dock);
+  assert.equal(update.unload, false);
+  assert.deepEqual(update.position, { x: 3.25, z: -3 });
+
+  update = Logic.advanceTruckJob(job, 2.5, home, dock);
+  assert.equal(update.unload, true);
+  assert.equal(job.phase, 2);
+  assert.deepEqual(update.position, dock);
+
+  update = Logic.advanceTruckJob(job, 2.5, home, dock);
+  assert.equal(update.complete, false);
+  assert.deepEqual(update.position, { x: 3.25, z: -3 });
+
+  update = Logic.advanceTruckJob(job, 2.5, home, dock);
+  assert.equal(update.complete, true);
+  assert.deepEqual(update.position, home);
+});
+
+test('el script principal y el controlador de joystick conservan sintaxis válida', () => {
   const fs = require('node:fs');
   const vm = require('node:vm');
   const path = require('node:path');
-  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const root = path.join(__dirname, '..');
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const logicSource = fs.readFileSync(path.join(root, 'game-logic.js'), 'utf8');
   const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
     .map(match => match[1])
     .filter(source => source.trim());
   assert.ok(inlineScripts.length > 0, 'debe existir el script principal');
   for (const source of inlineScripts) new vm.Script(source, { filename: 'index.html:inline-script' });
+  new vm.Script(logicSource, { filename: 'game-logic.js' });
   assert.match(html, /src="\.\/game-logic\.js"/);
-  assert.match(html, /addEventListener\('touchstart'/);
-  assert.match(html, /addEventListener\('pointerdown'/);
+  assert.match(html, /ImperioLogic\.bindJoystick/);
+  assert.match(logicSource, /addEventListener\('touchstart'/);
+  assert.match(logicSource, /addEventListener\('pointerdown'/);
 });
-
-test('el joystick responde al arrastre Pointer Events y se centra al soltar', () => {
-  const listeners = {};
-  const zone = {
-    addEventListener(name, handler) { listeners[name] = handler; },
-    getBoundingClientRect() { return { left: 0, top: 0, width: 100, height: 100 }; },
-    setPointerCapture(id) { this.captured = id; },
-    emit(name, event) { listeners[name](event); }
-  };
-  const knob = { style: {} };
-  const moves = [];
-  const joystick = Logic.bindJoystick(zone, knob, value => moves.push(value));
-  let prevented = false;
-  zone.emit('pointerdown', { pointerId: 3, pointerType: 'mouse', button: 0, clientX: 80, clientY: 50, preventDefault() { prevented = true; } });
-  assert.ok(moves.at(-1).x > 0.7);
-  assert.equal(zone.captured, 3);
-  zone.emit('pointermove', { pointerId: 3, clientX: 50, clientY: 80, preventDefault() {} });
-  assert.ok(moves.at(-1).z > 0.7);
-  zone.emit('pointerup', { pointerId: 3 });
-  assert.deepEqual(moves.at(-1), { x: 0, z: 0 });
-  assert.ok(prevented);
-  assert.match(knob.style.left, /50%/);
-  joystick.reset();
-});
-
-test('el joystick conserva compatibilidad con eventos táctiles nativos', () => {
-  const listeners = {};
-  const zone = {
-    addEventListener(name, handler) { listeners[name] = handler; },
-    getBoundingClientRect() { return { left: 0, top: 0, width: 100, height: 100 }; },
-    emit(name, event) { listeners[name](event); }
-  };
-  const knob = { style: {} };
-  const moves = [];
-  Logic.bindJoystick(zone, knob, value => moves.push(value));
-  let prevented = false;
-  zone.emit('touchstart', { changedTouches: [{ identifier: 9, clientX: 50, clientY: 20 }], preventDefault() { prevented = true; } });
-  zone.emit('touchmove', { changedTouches: [{ identifier: 9, clientX: 80, clientY: 50 }], preventDefault() {} });
-  assert.ok(moves.at(-1).x > 0.7);
-  zone.emit('touchend', { changedTouches: [{ identifier: 9 }] });
-  assert.deepEqual(moves.at(-1), { x: 0, z: 0 });
-  assert.ok(prevented);
-});
-

@@ -139,6 +139,39 @@
     return { reset };
   }
 
+
+  function advanceTruckJob(job, deltaSeconds, home, dock, loadSeconds = 1, travelSeconds = 5) {
+    if (!job) return { position: home, load: false, unload: false, complete: true };
+    job.t = (job.t || 0) + Math.max(0, Number(deltaSeconds) || 0);
+
+    if (job.phase === 0) {
+      if (job.t < loadSeconds) return { position: home, load: false, unload: false, complete: false };
+      job.phase = 1;
+      job.t = 0;
+      return { position: home, load: true, unload: false, complete: false };
+    }
+
+    if (job.phase === 1) {
+      const progress = Math.min(1, job.t / travelSeconds);
+      const position = interpolateXZ(home, dock, progress);
+      if (progress >= 1) {
+        job.phase = 2;
+        job.t = 0;
+        return { position: dock, load: false, unload: true, complete: false };
+      }
+      return { position, load: false, unload: false, complete: false };
+    }
+
+    if (job.phase === 2) {
+      const progress = Math.min(1, job.t / travelSeconds);
+      const position = interpolateXZ(dock, home, progress);
+      if (progress >= 1) return { position: home, load: false, unload: false, complete: true };
+      return { position, load: false, unload: false, complete: false };
+    }
+
+    return { position: home, load: false, unload: false, complete: true };
+  }
+
   const api = {
     normalizeInput,
     distanceXZ,
@@ -146,7 +179,8 @@
     hitTree,
     isWithin,
     interpolateXZ,
-    bindJoystick
+    bindJoystick,
+    advanceTruckJob
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
