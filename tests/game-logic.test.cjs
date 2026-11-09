@@ -74,3 +74,47 @@ test('el script principal del juego conserva sintaxis JavaScript válida', () =>
   assert.match(html, /addEventListener\('touchstart'/);
   assert.match(html, /addEventListener\('pointerdown'/);
 });
+
+test('el joystick responde al arrastre Pointer Events y se centra al soltar', () => {
+  const listeners = {};
+  const zone = {
+    addEventListener(name, handler) { listeners[name] = handler; },
+    getBoundingClientRect() { return { left: 0, top: 0, width: 100, height: 100 }; },
+    setPointerCapture(id) { this.captured = id; },
+    emit(name, event) { listeners[name](event); }
+  };
+  const knob = { style: {} };
+  const moves = [];
+  const joystick = Logic.bindJoystick(zone, knob, value => moves.push(value));
+  let prevented = false;
+  zone.emit('pointerdown', { pointerId: 3, pointerType: 'mouse', button: 0, clientX: 80, clientY: 50, preventDefault() { prevented = true; } });
+  assert.ok(moves.at(-1).x > 0.7);
+  assert.equal(zone.captured, 3);
+  zone.emit('pointermove', { pointerId: 3, clientX: 50, clientY: 80, preventDefault() {} });
+  assert.ok(moves.at(-1).z > 0.7);
+  zone.emit('pointerup', { pointerId: 3 });
+  assert.deepEqual(moves.at(-1), { x: 0, z: 0 });
+  assert.ok(prevented);
+  assert.match(knob.style.left, /50%/);
+  joystick.reset();
+});
+
+test('el joystick conserva compatibilidad con eventos táctiles nativos', () => {
+  const listeners = {};
+  const zone = {
+    addEventListener(name, handler) { listeners[name] = handler; },
+    getBoundingClientRect() { return { left: 0, top: 0, width: 100, height: 100 }; },
+    emit(name, event) { listeners[name](event); }
+  };
+  const knob = { style: {} };
+  const moves = [];
+  Logic.bindJoystick(zone, knob, value => moves.push(value));
+  let prevented = false;
+  zone.emit('touchstart', { changedTouches: [{ identifier: 9, clientX: 50, clientY: 20 }], preventDefault() { prevented = true; } });
+  zone.emit('touchmove', { changedTouches: [{ identifier: 9, clientX: 80, clientY: 50 }], preventDefault() {} });
+  assert.ok(moves.at(-1).x > 0.7);
+  zone.emit('touchend', { changedTouches: [{ identifier: 9 }] });
+  assert.deepEqual(moves.at(-1), { x: 0, z: 0 });
+  assert.ok(prevented);
+});
+

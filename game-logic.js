@@ -58,13 +58,95 @@
     };
   }
 
+
+  function bindJoystick(zone, knob, onMove) {
+    let activePointer = null;
+    let activeTouch = null;
+
+    function update(clientX, clientY) {
+      const rect = zone.getBoundingClientRect();
+      const x = clientX - rect.left - rect.width / 2;
+      const y = clientY - rect.top - rect.height / 2;
+      const radius = Math.max(1, Math.min(rect.width, rect.height) * 0.31);
+      const vector = normalizeInput(x / radius, y / radius, 0.02);
+      onMove({ x: vector.x, z: vector.z });
+      const limit = Math.max(0, rect.width / 2 - 21);
+      knob.style.left = 'calc(50% - 21px + ' + Math.max(-limit, Math.min(limit, x)) + 'px)';
+      knob.style.top = 'calc(50% - 21px + ' + Math.max(-limit, Math.min(limit, y)) + 'px)';
+    }
+
+    function reset() {
+      activePointer = null;
+      activeTouch = null;
+      onMove({ x: 0, z: 0 });
+      knob.style.left = 'calc(50% - 21px)';
+      knob.style.top = 'calc(50% - 21px)';
+    }
+
+    zone.addEventListener('pointerdown', event => {
+      if (activePointer !== null || activeTouch !== null) return;
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      event.preventDefault();
+      activePointer = event.pointerId;
+      try {
+        if (zone.setPointerCapture) zone.setPointerCapture(event.pointerId);
+      } catch (_) {}
+      update(event.clientX, event.clientY);
+    });
+    zone.addEventListener('pointermove', event => {
+      if (event.pointerId === activePointer) {
+        event.preventDefault();
+        update(event.clientX, event.clientY);
+      }
+    });
+    zone.addEventListener('pointerup', event => {
+      if (event.pointerId === activePointer) reset();
+    });
+    zone.addEventListener('pointercancel', event => {
+      if (event.pointerId === activePointer) reset();
+    });
+
+    zone.addEventListener('touchstart', event => {
+      if (activePointer !== null || activeTouch !== null) return;
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      event.preventDefault();
+      activeTouch = touch.identifier;
+      update(touch.clientX, touch.clientY);
+    }, { passive: false });
+    zone.addEventListener('touchmove', event => {
+      if (activeTouch === null) return;
+      event.preventDefault();
+      for (const touch of event.changedTouches) {
+        if (touch.identifier === activeTouch) {
+          update(touch.clientX, touch.clientY);
+          break;
+        }
+      }
+    }, { passive: false });
+    function endTouch(event) {
+      if (activeTouch === null) return;
+      for (const touch of event.changedTouches) {
+        if (touch.identifier === activeTouch) {
+          reset();
+          break;
+        }
+      }
+    }
+    zone.addEventListener('touchend', endTouch, { passive: false });
+    zone.addEventListener('touchcancel', endTouch, { passive: false });
+    zone.addEventListener('contextmenu', event => event.preventDefault());
+    return { reset };
+  }
+
   const api = {
     normalizeInput,
     distanceXZ,
     nearestActiveTree,
     hitTree,
     isWithin,
-    interpolateXZ
+    interpolateXZ,
+    bindJoystick
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
