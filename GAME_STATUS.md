@@ -6,8 +6,8 @@ El hito del 50% solo cuenta funciones principales implementadas **y verificadas 
 |---|---|---|
 | Carga del juego y escena 3D | Verificada | La página publicada responde y Three.js renderiza en la prueba de navegador. |
 | Movimiento táctil Android/Chrome | Lógica reforzada y probada; dispositivo pendiente | Se cubren Pointer Events, Touch Events, captura, cancelación y centrado del joystick en pruebas automatizadas. Falta una pasada táctil real en Android Chrome. |
-| Tala automática por proximidad | Lógica integrada y probada; ejecución móvil pendiente | La lógica golpea por proximidad, respeta radio y capacidad, y entrega un tronco tras tres golpes. Prueba dirigida en Node aprobada; falta confirmar el ciclo con controles táctiles reales en el dispositivo. |
-| Carga de troncos y camión | Parcial | El botón valida proximidad; la ruta, carga, descarga y retorno necesitan prueba de extremo a extremo. |
+| Tala automática por proximidad | Lógica integrada y probada; ejecución móvil pendiente | La lógica golpea por proximidad, respeta radio y capacidad, y entrega un tronco tras tres golpes. Las pruebas automatizadas pasan; falta confirmar el ciclo en un dispositivo Android con almacenamiento limpio. |
+| Carga de troncos y camión | Ruta lógica verificada; integración visual pendiente | Las pruebas cubren carga, viaje, descarga y retorno del camión. Falta comprobar el flujo visual completo dentro del juego. |
 | Aserradero y producción de tablas | Implementada, pendiente de verificación | Banda, rodillos y conversión están en el código; falta prueba de extremo a extremo. |
 | Almacén y venta | Implementada, pendiente de verificación | Botón y comprador están programados; falta completar el ciclo real. |
 | Trabajadores y automatización | Implementada, pendiente de verificación | Contratación y generación periódica de troncos están en el código. |
@@ -16,9 +16,10 @@ El hito del 50% solo cuenta funciones principales implementadas **y verificadas 
 | Inversionista | Implementada, pendiente de verificación | Oferta directa con aceptación/rechazo; falta probar el evento completo. |
 | Anuncios recompensados con confirmación del proveedor | No implementada | No se simulará una recompensa como si proviniera de un proveedor real. |
 
-## Pruebas
+## Última revisión técnica
 
-- Añadidas pruebas unitarias para tala automática por proximidad, límite de mochila, arrastre por Pointer Events y compatibilidad Touch Events.
-- Cuatro pruebas dirigidas de Node para los nuevos controladores pasaron en el entorno de trabajo.
-- La prueba de navegador confirma carga de Three.js y la escena publicada. La herramienta no pudo sintetizar el arrastre del joystick, así que no se declara verificado el movimiento táctil real.
-- La ejecución completa de npm test queda pendiente de confirmar en GitHub Actions.
+- Commit de controles y tala automática: 84bd4de01dd5855bd4e4619b4aaaca64f5553995.
+- GitHub Actions: npm test completado correctamente en https://github.com/pedroperezcastaneda27-cpu/imperio-maderero-3d./actions/runs/42676116929.
+- GitHub Pages: compilación y despliegue completados correctamente en https://github.com/pedroperezcastaneda27-cpu/imperio-maderero-3d./actions/runs/42676117317.
+- El asset publicado game-logic.js contiene advanceAutoChop y el manejador lostpointercapture.
+- La prueba de navegador confirma carga de Three.js y la escena publicada. La herramienta no pudo sintetizar el arrastre del joystick; no se declara verificado el movimiento táctil real en Android.
