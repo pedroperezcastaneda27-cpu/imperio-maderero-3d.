@@ -61,42 +61,9 @@ $('close').onclick=()=>$('modal').classList.remove('show');
 $('modal').onclick=e=>{if(e.target===$('modal'))$('modal').classList.remove('show')};
 addEventListener('keydown',e=>{keys[e.key]=true;if(e.key==='e')deliver();if(e.key==='f')sell()});
 addEventListener('keyup',e=>keys[e.key]=false);
-const zone=$('stickzone'),knob=$('stick');let activePointer=null,activeTouch=null;
-function updateStick(clientX,clientY){
-  const rect=zone.getBoundingClientRect(),x=clientX-rect.left-rect.width/2,y=clientY-rect.top-rect.height/2;
-  const radius=Math.max(1,Math.min(rect.width,rect.height)*.31);
-  const vector=ImperioLogic.normalizeInput(x/radius,y/radius,.02);
-  move={x:vector.x,z:vector.z};
-  const limit=Math.max(0,rect.width/2-21);
-  knob.style.left='calc(50% - 21px + '+Math.max(-limit,Math.min(limit,x))+'px)';
-  knob.style.top='calc(50% - 21px + '+Math.max(-limit,Math.min(limit,y))+'px)';
-}
-function resetStick(){
-  activePointer=null;activeTouch=null;move={x:0,z:0};
-  knob.style.left='calc(50% - 21px)';knob.style.top='calc(50% - 21px)';
-}
-zone.addEventListener('pointerdown',e=>{
-  if(activePointer!==null||activeTouch!==null)return;
-  if(e.pointerType==='mouse'&&e.button!==0)return;
-  e.preventDefault();activePointer=e.pointerId;
-  try{zone.setPointerCapture(e.pointerId)}catch(_){}
-  updateStick(e.clientX,e.clientY);
-});
-zone.addEventListener('pointermove',e=>{if(e.pointerId===activePointer){e.preventDefault();updateStick(e.clientX,e.clientY)}});
-zone.addEventListener('pointerup',e=>{if(e.pointerId===activePointer)resetStick()});
-zone.addEventListener('pointercancel',e=>{if(e.pointerId===activePointer)resetStick()});
-zone.addEventListener('touchstart',e=>{
-  if(activePointer!==null||activeTouch!==null)return;
-  const touch=e.changedTouches[0];if(!touch)return;e.preventDefault();activeTouch=touch.identifier;updateStick(touch.clientX,touch.clientY);
-},{passive:false});
-zone.addEventListener('touchmove',e=>{
-  if(activeTouch===null)return;e.preventDefault();
-  for(const touch of e.changedTouches){if(touch.identifier===activeTouch){updateStick(touch.clientX,touch.clientY);break}}
-},{passive:false});
-function endTouch(e){if(activeTouch===null)return;for(const touch of e.changedTouches){if(touch.identifier===activeTouch){resetStick();break}}}
-zone.addEventListener('touchend',endTouch,{passive:false});
-zone.addEventListener('touchcancel',endTouch,{passive:false});
-zone.addEventListener('contextmenu',e=>e.preventDefault());
+const zone=$('stickzone'),knob=$('stick');
+const joystick=ImperioLogic.bindJoystick(zone,knob,value=>{move=value});
+const resetStick=()=>joystick.reset();
 addEventListener('blur',resetStick);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)resetStick()});
 }
