@@ -65,12 +65,12 @@ test('el script principal del juego conserva sintaxis JavaScript válida', () =>
   const vm = require('node:vm');
   const path = require('node:path');
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  const inlineScripts = [...html.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/gi)]
+  const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
     .map(match => match[1])
     .filter(source => source.trim());
   assert.ok(inlineScripts.length > 0, 'debe existir el script principal');
   for (const source of inlineScripts) new vm.Script(source, { filename: 'index.html:inline-script' });
-  assert.match(html, /src="\\.\\/game-logic\\.js"/);
-  assert.match(html, /addEventListener\\('touchstart'/);
-  assert.match(html, /addEventListener\\('pointerdown'/);
+  assert.match(html, /src="\.\/game-logic\.js"/);
+  assert.match(html, /addEventListener\('touchstart'/);
+  assert.match(html, /addEventListener\('pointerdown'/);
 });
