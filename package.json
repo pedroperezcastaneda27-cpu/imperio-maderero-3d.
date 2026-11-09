@@ -1,0 +1,7 @@
+{
+  "name": "imperio-maderero-3d",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
