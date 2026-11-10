@@ -233,6 +233,72 @@
     return { position: home, load: false, unload: false, complete: true };
   }
 
+
+  function advanceProductionItem(item, deltaSeconds, options = {}) {
+    if (!item || typeof item !== 'object') {
+      return { converted: false, stored: false, progress: 0 };
+    }
+    const speed = Number.isFinite(options.speed) ? Math.max(0, options.speed) : 1.45;
+    const sawX = Number.isFinite(options.sawX) ? options.sawX : -0.9;
+    const storageX = Number.isFinite(options.storageX) ? options.storageX : 9.1;
+    const delta = Math.max(0, Number(deltaSeconds) || 0);
+    item.x = (Number(item.x) || 0) + delta * speed;
+
+    const converted = !item.converted && item.x >= sawX;
+    if (converted) item.converted = true;
+    const stored = !item.stored && item.x >= storageX;
+    if (stored) item.stored = true;
+
+    const span = Math.max(0.001, storageX - sawX);
+    return {
+      converted,
+      stored,
+      progress: Math.max(0, Math.min(1, (item.x - sawX) / span))
+    };
+  }
+
+  function createBuyerJob(quantity, unitPrice, multiplier = 2) {
+    const n = Math.max(0, Math.floor(Number(quantity) || 0));
+    const price = Math.max(0, Number(unitPrice) || 0);
+    const factor = Math.max(0, Number(multiplier) || 0);
+    return {
+      t: 0,
+      n,
+      unitPrice: price,
+      multiplier: factor,
+      revenue: Math.floor(n * price * factor),
+      phase: 0,
+      paid: false
+    };
+  }
+
+  function advanceBuyerJob(job, deltaSeconds, approachSeconds = 2, departureSeconds = 2) {
+    if (!job) {
+      return { phase: 2, progress: 1, arrived: false, complete: true, payout: 0 };
+    }
+    if (job.phase >= 2) {
+      return { phase: 2, progress: 1, arrived: false, complete: true, payout: 0 };
+    }
+
+    job.t = (Number(job.t) || 0) + Math.max(0, Number(deltaSeconds) || 0);
+    const duration = Math.max(0.05, job.phase === 0 ? approachSeconds : departureSeconds);
+    const progress = Math.min(1, job.t / duration);
+
+    if (job.phase === 0 && progress >= 1) {
+      job.phase = 1;
+      job.t = 0;
+      return { phase: 1, progress: 1, arrived: true, complete: false, payout: 0 };
+    }
+    if (job.phase === 1 && progress >= 1) {
+      job.phase = 2;
+      job.t = 0;
+      const payout = job.paid ? 0 : job.revenue;
+      job.paid = true;
+      return { phase: 2, progress: 1, arrived: false, complete: true, payout };
+    }
+    return { phase: job.phase, progress, arrived: false, complete: false, payout: 0 };
+  }
+
   const api = {
     normalizeInput,
     distanceXZ,
@@ -242,7 +308,10 @@
     isWithin,
     interpolateXZ,
     bindJoystick,
-    advanceTruckJob
+    advanceTruckJob,
+    advanceProductionItem,
+    createBuyerJob,
+    advanceBuyerJob
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

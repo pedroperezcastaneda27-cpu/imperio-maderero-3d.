@@ -184,6 +184,91 @@ test('el camión carga, viaja al aserradero, descarga y regresa al patio', () =>
   assert.deepEqual(update.position, home);
 });
 
+
+test('el aserradero convierte cada tronco una sola vez y lo almacena una sola vez', () => {
+  const item = { x: -3.1, converted: false, stored: false };
+  let conversions = 0;
+  let stored = 0;
+  for (let i = 0; i < 300; i++) {
+    const step = Logic.advanceProductionItem(item, 0.05);
+    if (step.converted) conversions++;
+    if (step.stored) stored++;
+    if (step.stored) break;
+  }
+  assert.equal(conversions, 1);
+  assert.equal(stored, 1);
+  assert.equal(item.converted, true);
+  assert.equal(item.stored, true);
+  assert.ok(item.x >= 9.1);
+});
+
+test('el comprador captura el precio al iniciar y paga una sola vez al terminar su ruta', () => {
+  const job = Logic.createBuyerJob(3, 12);
+  assert.equal(job.revenue, 72);
+
+  let step = Logic.advanceBuyerJob(job, 1);
+  assert.equal(step.phase, 0);
+  assert.equal(step.payout, 0);
+
+  step = Logic.advanceBuyerJob(job, 1);
+  assert.equal(step.arrived, true);
+  assert.equal(step.phase, 1);
+  assert.equal(step.payout, 0);
+
+  step = Logic.advanceBuyerJob(job, 1);
+  assert.equal(step.complete, false);
+  assert.equal(step.payout, 0);
+
+  step = Logic.advanceBuyerJob(job, 1);
+  assert.equal(step.complete, true);
+  assert.equal(step.payout, 72);
+  assert.equal(job.paid, true);
+
+  step = Logic.advanceBuyerJob(job, 1);
+  assert.equal(step.complete, true);
+  assert.equal(step.payout, 0);
+});
+
+test('ciclo lógico completo: camión, aserradero, almacén y venta', () => {
+  const home = { x: -3.5, z: 8 };
+  const dock = { x: 10, z: -14 };
+  const truckJob = { t: 0, n: 2, phase: 0 };
+  let loaded = false;
+  let unloaded = false;
+  const belt = [];
+
+  for (let i = 0; i < 22; i++) {
+    const step = Logic.advanceTruckJob(truckJob, 0.5, home, dock);
+    if (step.load) loaded = true;
+    if (step.unload) {
+      unloaded = true;
+      for (let n = 0; n < truckJob.n; n++) {
+        belt.push({ x: -3.1, converted: false, stored: false });
+      }
+    }
+  }
+  assert.equal(loaded, true);
+  assert.equal(unloaded, true);
+  assert.equal(belt.length, 2);
+
+  let planks = 0;
+  for (const item of belt) {
+    for (let i = 0; i < 300; i++) {
+      const step = Logic.advanceProductionItem(item, 0.05);
+      if (step.stored) { planks++; break; }
+    }
+  }
+  assert.equal(planks, 2);
+
+  const sale = Logic.createBuyerJob(planks, 12);
+  let payout = 0;
+  for (let i = 0; i < 8; i++) {
+    payout += Logic.advanceBuyerJob(sale, 0.5).payout;
+  }
+  assert.equal(payout, 48);
+  assert.equal(sale.paid, true);
+});
+
 test('el script principal y el controlador de joystick conservan sintaxis válida', () => {
   const fs = require('node:fs');
   const vm = require('node:vm');
@@ -200,6 +285,9 @@ test('el script principal y el controlador de joystick conservan sintaxis válid
   assert.match(html, /src="\.\/game-logic\.js"/);
   assert.match(html, /ImperioLogic\.bindJoystick/);
   assert.match(html, /ImperioLogic\.advanceAutoChop/);
+  assert.match(html, /ImperioLogic\.advanceProductionItem/);
+  assert.match(html, /ImperioLogic\.createBuyerJob/);
+  assert.match(html, /ImperioLogic\.advanceBuyerJob/);
   assert.match(logicSource, /addEventListener\('touchstart'/);
   assert.match(logicSource, /addEventListener\('pointerdown'/);
 });
